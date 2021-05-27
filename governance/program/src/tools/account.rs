@@ -88,6 +88,9 @@ pub fn deserialize_account<T: BorshDeserialize + IsInitialized>(
     account_info: &AccountInfo,
     owner_program_id: &Pubkey,
 ) -> Result<T, ProgramError> {
+    if account_info.data_is_empty() {
+        return Err(ProgramError::UninitializedAccount);
+    }
     if account_info.owner != owner_program_id {
         return Err(GovernanceError::InvalidAccountOwner.into());
     }
@@ -98,4 +101,43 @@ pub fn deserialize_account<T: BorshDeserialize + IsInitialized>(
     } else {
         Ok(account)
     }
+}
+
+/// Asserts the given account is not empty, owned given program and of the expected type
+pub fn assert_is_valid_account<T: BorshDeserialize + PartialEq>(
+    account_info: &AccountInfo,
+    expected_account_type: T,
+    owner_program_id: &Pubkey,
+) -> Result<(), ProgramError> {
+    if account_info.owner != owner_program_id {
+        return Err(GovernanceError::InvalidAccountOwner.into());
+    }
+
+    if account_info.data_is_empty() {
+        return Err(ProgramError::UninitializedAccount);
+    }
+
+    let account_type: T = try_from_slice_unchecked(&account_info.data.borrow())?;
+
+    if account_type != expected_account_type {
+        return Err(GovernanceError::InvalidAccountType.into());
+    };
+
+    Ok(())
+}
+
+/// Disposes account by transferring its lamports to the beneficiary account and zeros its data
+// After transaction completes the runtime would remove the account with no lamports
+pub fn dispose_account(account_info: &AccountInfo, beneficiary_account: &AccountInfo) {
+    let account_lamports = account_info.lamports();
+    **account_info.lamports.borrow_mut() = 0;
+
+    **beneficiary_account.lamports.borrow_mut() = beneficiary_account
+        .lamports()
+        .checked_add(account_lamports)
+        .unwrap();
+
+    let mut account_data = account_info.data.borrow_mut();
+
+    account_data.fill(0);
 }
