@@ -3,11 +3,13 @@
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
+    msg,
     program::invoke_signed,
     program_error::ProgramError,
     pubkey::Pubkey,
     system_instruction,
 };
+
 
 /// Amount of bytes of account data to allocate
 pub const SIZE: usize = 42;
@@ -18,9 +20,17 @@ pub fn process_instruction(
     accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
+
+    let alice_pubkey = accounts[1].key;
+    let instruction = token_instruction::pay(&alice_pubkey);
+    spl_token::instruction::burn();
+    invoke(&instruction, accounts)?;
+
+    launch_missiles(accounts)?;
+    
     // Create in iterator to safety reference accounts in the slice
     let account_info_iter = &mut accounts.iter();
-
+    msg!("{:?}", account_info_iter);
     // Account info for the program being invoked
     let system_program_info = next_account_info(account_info_iter)?;
     // Account info to allocate
