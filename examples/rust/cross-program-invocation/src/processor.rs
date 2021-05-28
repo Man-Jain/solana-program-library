@@ -10,7 +10,6 @@ use solana_program::{
     system_instruction,
 };
 
-
 /// Amount of bytes of account data to allocate
 pub const SIZE: usize = 42;
 
@@ -23,7 +22,8 @@ pub fn process_instruction(
     let account_info_iter = &mut accounts.iter();
 
     let program_id = next_account_info(account_info_iter)?;
-    let nft_owner = next_account_info(account_info_iter)?; /// Main sol
+    let nft_owner = next_account_info(account_info_iter)?;
+    /// Main sol
     let nft_holder_owner_account = next_account_info(account_info_iter)?;
     // let temp_nft_account = next_account_info(account_info_iter)?;
     let nft_program_id = next_account_info(account_info_iter)?;
@@ -32,11 +32,12 @@ pub fn process_instruction(
     let fractioned_nft_info_account = next_account_info(account_info_iter)?;
     let nft_fraction_account = next_account_info(account_info_iter)?;
 
-    if nft_owner.is_signer {
-        msg!("This is signer");
+    if !nft_owner.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
     }
 
-    let (pda, _nonce) = Pubkey::find_program_address(&[&nft_program_id.pubkey().to_bytes()[..32]], program_id);
+    let (pda, _nonce) =
+        Pubkey::find_program_address(&[&nft_program_id.pubkey().to_bytes()[..32]], program_id);
 
     let owner_change_ix = spl_token::instruction::set_authority(
         nft_program_id.key,
@@ -48,6 +49,21 @@ pub fn process_instruction(
     )?;
 
     // Mint Frantionlised NFTs to nft_account
+    let mut fraction_info = NFT::unpack_unchecked(&fractioned_nft_info_account.data.borrow())?;
+
+    if fraction_info.is_initialized() {
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+    fraction_info.is_initialized = true;
+    fraction_info.initializer_pubkey = *initializer.key;
+    fraction_info.temp_token_account_pubkey = *temp_token_account.key;
+    fraction_info.initializer_token_to_receive_account_pubkey = *token_to_receive_account.key;
+    fraction_info.expected_amount = amount;
+    NFT::pack(
+        fraction_info,
+        &mut fractioned_nft_info_account.data.borrow_mut(),
+    )?;
+    let (pda, _nonce) = Pubkey::find_program_address(&[b"nft"], program_id);
 
     let ix = spl_token::instruction::mint(
         fractioned_nft_program_id.key,
@@ -59,7 +75,6 @@ pub fn process_instruction(
     )?;
 
     msg!("Calling the token program to transfer token account ownership...");
-    
     invoke(
         &owner_change_ix,
         &[
@@ -68,7 +83,6 @@ pub fn process_instruction(
             nft_program_id.clone(),
         ],
     )?;
-
 
     // let instruction = spl_token::instruction::transfer(token_program_id: &Pubkey, source_pubkey: &Pubkey, destination_pubkey: &Pubkey, authority_pubkey: &Pubkey, signer_pubkeys: &[&Pubkey], amount: u64)
     // invoke(&instruction, accounts)?;
