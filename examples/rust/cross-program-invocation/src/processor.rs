@@ -48,7 +48,7 @@ pub fn process_instruction(
         &[&nft_owner.key],
     )?;
 
-    // Mint Frantionlised NFTs to nft_account
+    // Mint Frantionlised NFTs to nft_accountf
     let mut fraction_info = NFT::unpack_unchecked(&fractioned_nft_info_account.data.borrow())?;
 
     if fraction_info.is_initialized() {
